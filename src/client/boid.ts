@@ -4,31 +4,38 @@ export class Boid extends THREE.Mesh {
     velocity = new THREE.Vector3(0, 0, 0)
     acceleration = new THREE.Vector3(0, 0, 0)
     maxForce = 0.4
-    maxSpeed = 0.5
+    maxSpeed = 0.6
     width = 80
     height = 50
+    depth = 50
+    viewDistance = 15
 
     constructor() {
         super(
             new THREE.ConeGeometry(0.5, 2, 5).rotateX(-Math.PI / 2),
             new THREE.MeshBasicMaterial({
-                color: 'blue',
+                color: 'saddlebrown',
             })
         )
         this.position.set(
-            (Math.random() - 0.5) * this.width,
-            (Math.random() - 0.5) * this.height,
-            0
+            (Math.random() * 2 - 0.5) * this.width,
+            (Math.random() * 2 - 0.5) * this.height,
+            (Math.random() * 2 - 0.5) * this.depth,
+            
         )
-        this.velocity.set((Math.random() - 0.5) * 0.1, (Math.random() - 0.5) * 0.1, 0)
+        this.velocity.set(
+            (Math.random() * 2 - 0.5) * 0.1,
+            (Math.random() * 2 - 0.5) * 0.1,
+            (Math.random() * 2 - 0.5) * 0.1
+        )
         this.acceleration.copy(this.acceleration)
     }
 
     update(otherBoids: Boid[], strength = 0.006) {
-        otherBoids = this.getNeighbors(otherBoids, 15)
-        this.separate(otherBoids, .4 * strength)
-        this.align(otherBoids, 1.7 * strength)
-        this.cohese(otherBoids, 0.7 * strength)
+        otherBoids = this.getNeighbors(otherBoids, Math.PI * 0.8 )
+        this.separate(otherBoids, 0.2 * strength)
+        this.align(otherBoids, 4 * strength)
+        this.cohese(otherBoids, 3 * strength)
         this.move()
         this.constrain(80, 50)
     }
@@ -49,7 +56,7 @@ export class Boid extends THREE.Mesh {
         for (const other of neighbors) {
             let diff = this.position.clone().sub(other.position)
             // inversely proportional to the distance
-            diff.divideScalar(other.position.distanceTo(this.position))
+            diff.divideScalar(other.position.distanceTo(this.position) / this.viewDistance)
             steering.add(diff)
         }
         // steering.divideScalar(neighbors.length)
@@ -72,7 +79,10 @@ export class Boid extends THREE.Mesh {
         }
 
         for (const other of neighbors) {
-            steering.add(other.velocity)
+            const weightedVel = other.velocity.clone()
+                .divideScalar(other.position.distanceTo(this.position) / this.viewDistance)
+            steering.add(weightedVel)
+
         }
         // Steer towards the average direction
         steering.divideScalar(neighbors.length)
@@ -109,11 +119,11 @@ export class Boid extends THREE.Mesh {
      * @returns void
      */
     move() {
-        this.position.add(this.velocity)
-        this.velocity.add(this.acceleration)
         this.velocity.clampLength(0, this.maxSpeed)
         this.acceleration.clampLength(0, this.maxForce)
-        this.lookAt(this.position.clone().sub(this.velocity))
+        this.position.add(this.velocity)
+        this.velocity.add(this.acceleration)
+        this.lookAt(this.position.clone().sub(this.acceleration))
     }
 
     /**
@@ -133,6 +143,12 @@ export class Boid extends THREE.Mesh {
         if (this.position.y < -height) {
             this.position.y = height
         }
+        if (this.position.z > this.depth) {
+            this.position.z = -this.depth
+        }
+        if (this.position.z < -this.depth) {
+            this.position.z = this.depth
+        }
     }
 
     /**
@@ -142,13 +158,13 @@ export class Boid extends THREE.Mesh {
      * @param fov the angle of the boid's field of view, with respect to the pointing direction
      * @returns
      */
-    getNeighbors(otherBoids: Boid[], distance: number = 10, fov: number = Math.PI / 1.5) {
+    getNeighbors(otherBoids: Boid[], fov: number = Math.PI / 1.5) {
         return otherBoids.filter((other) => {
             const vectorToOther = other.position.clone().sub(this.position)
             const angleToOther = this.velocity.angleTo(vectorToOther)
             return (
                 other !== this &&
-                this.position.distanceTo(other.position) < distance &&
+                this.position.distanceTo(other.position) < this.viewDistance &&
                 angleToOther < fov
             )
         })
